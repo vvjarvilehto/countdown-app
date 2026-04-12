@@ -1,6 +1,6 @@
-const CACHE = 'tietovisa-v15';
+const CACHE = 'countdown-v1';
 
-const COUNTDOWN_DB = 'perhepakki-countdown';
+const COUNTDOWN_DB = 'countdown-app';
 const COUNTDOWN_DB_VER = 2;
 const COUNTDOWN_STORE = 'timers';
 const COUNTDOWN_TIMERS_KEY = 'timers';
@@ -234,11 +234,6 @@ self.addEventListener('message', (e) => {
 const PRECACHE = [
   './',
   'index.html',
-  'countdown.html',
-  'aurora.html',
-  'trivia.html',
-  'trivia.json',
-  'questions-aikuiset.js',
   'manifest.json',
   'icon.svg',
   'sw.js',
