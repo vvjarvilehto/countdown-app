@@ -1,0 +1,19 @@
+{
+  "name": "Paras countdown-äppi ikinä",
+  "short_name": "Countdown",
+  "description": "Countdown-ajastin — aseta kesto tai tapahtuma-aika",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fff7ed",
+  "theme_color": "#ea580c",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

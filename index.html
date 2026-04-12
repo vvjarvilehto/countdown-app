@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paras countdown-äppi ikinä</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta id="meta-theme" name="theme-color" content="#ea580c" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --app-bg: #fff7ed;
+      --bar-bg: rgba(255, 255, 255, 0.95);
+      --bar-border: #ffedd5;
+      --divide: #fff7ed;
+      --accent: #ea580c;
+      --accent-hover: #c2410c;
+      --accent-soft: #fff7ed;
+      --accent-muted: #fb923c;
+      --accent-contrast: #9a3412;
+      --ring-track: #fed7aa;
+      --ring-fill: #ea580c;
+      --card-border: #ffedd5;
+      --input-border: #ffedd5;
+      --status: #ea580c;
+      --btn-from: #f97316;
+      --btn-to: #f59e0b;
+      --btn-shadow: rgba(234, 88, 12, 0.35);
+      --overlay-accent: #fed7aa;
+      --meta-theme: #ea580c;
+    }
+    :root[data-theme="ocean"] {
+      --app-bg: #f0f9ff;
+      --bar-bg: rgba(255, 255, 255, 0.95);
+      --bar-border: #e0f2fe;
+      --divide: #f0f9ff;
+      --accent: #0284c7;
+      --accent-hover: #0369a1;
+      --accent-soft: #e0f2fe;
+      --accent-muted: #38bdf8;
+      --accent-contrast: #0c4a6e;
+      --ring-track: #bae6fd;
+      --ring-fill: #0284c7;
+      --card-border: #e0f2fe;
+      --input-border: #e0f2fe;
+      --status: #0284c7;
+      --btn-from: #0ea5e9;
+      --btn-to: #2563eb;
+      --btn-shadow: rgba(2, 132, 199, 0.35);
+      --overlay-accent: #bae6fd;
+      --meta-theme: #0284c7;
+    }
+    :root[data-theme="forest"] {
+      --app-bg: #f0fdf4;
+      --bar-bg: rgba(255, 255, 255, 0.95);
+      --bar-border: #dcfce7;
+      --divide: #f0fdf4;
+      --accent: #15803d;
+      --accent-hover: #166534;
+      --accent-soft: #dcfce7;
+      --accent-muted: #4ade80;
+      --accent-contrast: #14532d;
+      --ring-track: #bbf7d0;
+      --ring-fill: #15803d;
+      --card-border: #dcfce7;
+      --input-border: #dcfce7;
+      --status: #15803d;
+      --btn-from: #22c55e;
+      --btn-to: #15803d;
+      --btn-shadow: rgba(21, 128, 61, 0.35);
+      --overlay-accent: #bbf7d0;
+      --meta-theme: #15803d;
+    }
+    :root[data-theme="berry"] {
+      --app-bg: #fdf4ff;
+      --bar-bg: rgba(255, 255, 255, 0.95);
+      --bar-border: #f3e8ff;
+      --divide: #faf5ff;
+      --accent: #a21caf;
+      --accent-hover: #86198f;
+      --accent-soft: #fae8ff;
+      --accent-muted: #d946ef;
+      --accent-contrast: #701a75;
+      --ring-track: #f5d0fe;
+      --ring-fill: #a21caf;
+      --card-border: #f3e8ff;
+      --input-border: #f3e8ff;
+      --status: #a21caf;
+      --btn-from: #c026d3;
+      --btn-to: #9333ea;
+      --btn-shadow: rgba(162, 28, 175, 0.35);
+      --overlay-accent: #f5d0fe;
+      --meta-theme: #a21caf;
+    }
+    html { overflow-x: hidden; }
+    body { font-family: 'Nunito', sans-serif; overflow-x: hidden; background-color: var(--app-bg); }
+    body.has-active-timer { padding-top: min(40vh, 11rem); }
+    .preset--active {
+      border-color: var(--accent) !important;
+      background-color: var(--accent-soft) !important;
+      color: var(--accent-contrast) !important;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+    }
+    /* datetime-local:lla on usein leveä sisäinen minimileveys (mobiili-WebKit) */
+    input[type="datetime-local"] {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    #event-datetime-wrap {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+    /* WebKit: datetime-local sisäinen leveys voi ylittää 100 % ilman näitä */
+    #event-datetime::-webkit-datetime-edit-fields-wrapper {
+      max-width: 100%;
+    }
+    #event-datetime::-webkit-datetime-edit {
+      max-width: 100%;
+      padding: 0;
+    }
+    #ring {
+      transform: rotate(-90deg);
+      transition: stroke-dashoffset 0.35s ease;
+      stroke: var(--ring-fill);
+    }
+    #ring-track {
+      stroke: var(--ring-track);
+    }
+    @keyframes pop-in {
+      from { opacity: 0; transform: scale(0.85); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .celebrate-box {
+      animation: pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    #confetti-canvas {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 40;
+    }
+    #active-bar-wrap { box-shadow: 0 4px 20px rgba(0,0,0,0.08); background: var(--bar-bg); border-color: var(--bar-border) !important; }
+    .theme-card { border-color: var(--card-border) !important; }
+    .theme-border { border-color: var(--input-border) !important; }
+    .theme-accent-text { color: var(--accent) !important; }
+    .theme-accent-muted { color: var(--accent-muted) !important; }
+    .theme-row-active { background-color: color-mix(in srgb, var(--accent-soft) 70%, white) !important; }
+    .theme-row-press:active { background-color: color-mix(in srgb, var(--accent-soft) 90%, white) !important; }
+    .theme-heading { color: var(--accent) !important; }
+    .theme-btn-primary { background: linear-gradient(to right, var(--btn-from), var(--btn-to)) !important; box-shadow: 0 4px 16px var(--btn-shadow) !important; }
+    .theme-btn-solid { background-color: var(--accent) !important; }
+    .theme-btn-solid:hover { background-color: var(--accent-hover) !important; }
+    .theme-link { color: var(--accent-muted) !important; }
+    .theme-link:hover { color: var(--accent) !important; }
+    .theme-mode-on { border-color: color-mix(in srgb, var(--accent) 45%, #ccc) !important; background-color: var(--accent-soft) !important; color: var(--accent-contrast) !important; }
+    .theme-mode-off { border-color: #e5e7eb !important; }
+    .theme-detail-border { border-color: var(--overlay-accent) !important; }
+    .divide-theme > * + * { border-color: var(--divide) !important; }
+    .theme-preset {
+      background-color: var(--accent-soft) !important;
+      color: var(--accent-contrast) !important;
+      border-color: color-mix(in srgb, var(--accent) 32%, #e5e7eb) !important;
+    }
+    input.theme-border:focus {
+      border-color: color-mix(in srgb, var(--accent) 55%, #ccc) !important;
+    }
+    #event-datetime-wrap:focus-within {
+      border-color: color-mix(in srgb, var(--accent) 55%, #ccc) !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-5 pb-10">
+
+  <canvas id="confetti-canvas" aria-hidden="true"></canvas>
+
+  <!-- Käynnissä: ajastimet listana -->
+  <div id="active-bar-wrap" class="hidden fixed top-0 left-0 right-0 z-[60] max-w-[100vw] overflow-x-hidden backdrop-blur-sm border-b" role="region" aria-label="Käynnissä olevat ajastimet">
+    <div class="max-h-[min(40vh,220px)] min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain">
+      <div id="active-timers-list" class="divide-y divide-theme"></div>
+    </div>
+    <p class="text-[10px] text-center font-medium theme-accent-muted px-2 pb-1.5">Tuplaklikkaa riviä poistaaksesi ajastimen.</p>
+  </div>
+
+  <!-- Laajennettu näkymä -->
+  <div id="detail-backdrop" class="fixed inset-0 z-[70] hidden bg-black/30 backdrop-blur-sm" aria-hidden="true"></div>
+  <div id="detail-panel" class="fixed left-1/2 top-1/2 z-[80] hidden w-[min(92vw,22rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-white p-6 shadow-2xl border theme-detail-border" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <h2 id="detail-title" class="text-center text-sm font-bold uppercase tracking-wider theme-heading mb-1">Ajastin</h2>
+    <p id="detail-name" class="text-center font-black text-gray-900 text-lg mb-4 truncate px-1"></p>
+    <div id="detail-remaining" class="text-center text-2xl sm:text-3xl font-black text-gray-900 mb-4 px-1 break-words hyphens-auto leading-tight">00:00</div>
+    <p class="text-center text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Päättyy</p>
+    <p id="detail-ends" class="text-center text-base font-bold text-gray-700 mb-2"></p>
+    <p id="detail-mode" class="text-center text-xs font-semibold text-gray-400 mb-6"></p>
+    <button type="button" id="detail-remove" class="w-full py-3 rounded-2xl font-black text-white theme-btn-solid transition-colors mb-2">
+      Poista ajastin
+    </button>
+    <button type="button" id="detail-close" class="w-full py-3 rounded-2xl font-black text-white theme-btn-solid transition-colors">
+      Sulje
+    </button>
+  </div>
+
+  <div class="w-full max-w-md mx-auto relative z-10 min-w-0">
+    <header class="text-center mb-6">
+      <h1 class="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Paras countdown-äppi ikinä</h1>
+      <p class="text-gray-500 font-semibold text-sm mt-1">Valitse aika, nimeä ajastin ja käynnistä</p>
+    </header>
+
+    <!-- Teema -->
+    <div class="rounded-3xl p-4 mb-4 bg-white/90 border theme-card shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+      <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Ulkoasu</div>
+      <div id="theme-options" class="flex flex-wrap gap-2 justify-center" role="radiogroup" aria-label="Väriteema"></div>
+    </div>
+
+    <!-- Asetustapa -->
+    <div class="rounded-3xl p-4 mb-4 bg-white/90 border theme-card shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+      <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Aika</div>
+      <div class="flex gap-2 justify-center flex-wrap">
+        <button id="mode-duration" type="button" class="px-4 py-2 rounded-2xl text-sm font-bold border-2 bg-white text-gray-600 active:scale-95 transition-transform">
+          Valmis aika
+        </button>
+        <button id="mode-event" type="button" class="px-4 py-2 rounded-2xl text-sm font-bold border-2 bg-white text-gray-600 active:scale-95 transition-transform">
+          Tapahtuma-aika
+        </button>
+      </div>
+    </div>
+
+    <!-- Pikavalinnat (vain kesto) -->
+    <div id="preset-card" class="hidden rounded-3xl p-4 mb-4 bg-white/90 border theme-card shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+      <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Pikavalinnat</div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" data-preset="60" class="preset theme-preset px-3 py-2 rounded-2xl text-sm font-bold border active:scale-95 transition-transform">1 min</button>
+        <button type="button" data-preset="300" class="preset theme-preset px-3 py-2 rounded-2xl text-sm font-bold border active:scale-95 transition-transform">5 min</button>
+        <button type="button" data-preset="600" class="preset theme-preset px-3 py-2 rounded-2xl text-sm font-bold border active:scale-95 transition-transform">10 min</button>
+        <button type="button" data-preset="900" class="preset theme-preset px-3 py-2 rounded-2xl text-sm font-bold border active:scale-95 transition-transform">15 min</button>
+        <button type="button" data-preset="1500" class="preset theme-preset px-3 py-2 rounded-2xl text-sm font-bold border active:scale-95 transition-transform">25 min</button>
+        <button type="button" data-preset="3600" class="preset theme-preset px-3 py-2 rounded-2xl text-sm font-bold border active:scale-95 transition-transform">1 h</button>
+      </div>
+    </div>
+
+    <!-- Oma kesto -->
+    <div id="duration-card" class="hidden rounded-3xl p-4 mb-4 bg-white/90 border theme-card shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+      <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Kesto (tunnit, min, sek)</div>
+      <div class="flex gap-3 justify-center items-end flex-wrap">
+        <label class="text-center">
+          <span class="block text-xs font-bold text-gray-400 mb-1">T</span>
+          <input id="in-h" type="number" min="0" max="99" value="0" class="w-16 text-center text-xl font-black rounded-2xl border-2 theme-border py-2 outline-none bg-white" />
+        </label>
+        <label class="text-center">
+          <span class="block text-xs font-bold text-gray-400 mb-1">Min</span>
+          <input id="in-m" type="number" min="0" max="59" value="5" class="w-16 text-center text-xl font-black rounded-2xl border-2 theme-border py-2 outline-none bg-white" />
+        </label>
+        <label class="text-center">
+          <span class="block text-xs font-bold text-gray-400 mb-1">Sek</span>
+          <input id="in-s" type="number" min="0" max="59" value="0" class="w-16 text-center text-xl font-black rounded-2xl border-2 theme-border py-2 outline-none bg-white" />
+        </label>
+      </div>
+    </div>
+
+    <!-- Tapahtuma-aika -->
+    <div id="event-card" class="rounded-3xl p-4 mb-4 bg-white/90 border theme-card shadow-[0_4px_20px_rgba(0,0,0,0.06)] hidden min-w-0 max-w-full overflow-hidden">
+      <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Tapahtuman ajankohta</div>
+      <label class="block w-full min-w-0 max-w-full">
+        <span class="block text-xs font-bold text-gray-400 mb-1">Päivämäärä ja aika</span>
+        <div id="event-datetime-wrap" class="rounded-2xl border-2 theme-border bg-white transition-colors">
+          <input id="event-datetime" type="datetime-local"
+            class="w-full min-w-0 max-w-full rounded-2xl border-0 border-transparent px-2.5 sm:px-3 py-2 text-sm sm:text-base font-semibold focus:ring-0 focus:outline-none bg-transparent" />
+        </div>
+      </label>
+    </div>
+
+    <!-- Ajastimen nimi -->
+    <div class="rounded-3xl p-4 mb-4 bg-white/90 border theme-card shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+      <label class="block">
+        <span class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Ajastimen nimi</span>
+        <input id="timer-name" type="text" maxlength="80" required placeholder="Esim. Uunin paistoaika"
+          class="w-full rounded-2xl border-2 theme-border px-3 py-2.5 text-base font-bold outline-none bg-white" />
+      </label>
+    </div>
+
+    <!-- Näyttö + rengas -->
+    <div class="flex flex-col items-center mb-6">
+      <div class="relative w-64 h-64 sm:w-72 sm:h-72">
+        <svg class="w-full h-full drop-shadow-lg" viewBox="0 0 200 200" aria-hidden="true">
+          <circle id="ring-track" cx="100" cy="100" r="88" fill="none" stroke-width="10" />
+          <circle id="ring" cx="100" cy="100" r="88" fill="none" stroke-width="10"
+            stroke-linecap="round" stroke-dasharray="553" stroke-dashoffset="0" />
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
+          <div id="status" class="text-xs font-bold uppercase tracking-widest theme-accent-text mb-1">Valmis</div>
+          <div id="display" class="text-2xl sm:text-4xl font-black text-gray-900 tracking-tight max-w-[min(100%,16rem)] break-words hyphens-auto leading-tight text-center">00:05:00</div>
+          <div id="sub" class="text-xs font-semibold text-gray-400 mt-2 max-w-[200px]"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ohjaus -->
+    <div class="flex flex-wrap gap-2 justify-center mb-4">
+      <button id="btn-start" type="button" class="px-8 py-3 rounded-full font-black text-white active:scale-95 transition-all theme-btn-primary">
+        ▶ Käynnistä ajastin
+      </button>
+    </div>
+
+    <p id="hint-notify" class="text-center text-xs text-gray-400 font-medium">
+      Ilmoitukset: salli ne. Taustalla muistutus tulee useimmiten; jos suljet PWA:n kokonaan, puhelin voi keskeyttää taustatyön — Chrome Androidissa taustasynkronointi auttaa, iOS rajoittaa usein.
+    </p>
+  </div>
+
+  <!-- Loppujuhla-overlay -->
+  <div id="overlay" class="fixed inset-0 z-50 hidden items-center justify-center p-6 bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="celebrate-title">
+    <div class="celebrate-box max-w-sm w-full rounded-3xl bg-white p-8 text-center shadow-2xl border theme-detail-border">
+      <div class="text-5xl mb-4" aria-hidden="true">🎉</div>
+      <h2 id="celebrate-title" class="text-2xl font-black text-gray-900">Aika täynnä!</h2>
+      <p id="celebrate-default" class="text-gray-600 font-semibold mt-2">Hienoa — saavutit mitän asettamasi.</p>
+      <button type="button" id="btn-dismiss" class="mt-8 w-full py-3 rounded-2xl font-black text-white theme-btn-solid transition-colors">
+        Selvä!
+      </button>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const RING_LEN = 2 * Math.PI * 88;
+  const MAX_TIMERS = 12;
+
+  const display = document.getElementById('display');
+  const sub = document.getElementById('sub');
+  const statusEl = document.getElementById('status');
+  const ring = document.getElementById('ring');
+  const btnStart = document.getElementById('btn-start');
+  const modeDuration = document.getElementById('mode-duration');
+  const modeEvent = document.getElementById('mode-event');
+  const presetCard = document.getElementById('preset-card');
+  const durationCard = document.getElementById('duration-card');
+  const eventCard = document.getElementById('event-card');
+  const timerNameInput = document.getElementById('timer-name');
+  const eventDatetime = document.getElementById('event-datetime');
+  const inH = document.getElementById('in-h');
+  const inM = document.getElementById('in-m');
+  const inS = document.getElementById('in-s');
+  const overlay = document.getElementById('overlay');
+  const celebrateTitle = document.getElementById('celebrate-title');
+  const celebrateDefault = document.getElementById('celebrate-default');
+  const btnDismiss = document.getElementById('btn-dismiss');
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  const activeBarWrap = document.getElementById('active-bar-wrap');
+  const activeTimersList = document.getElementById('active-timers-list');
+  const detailBackdrop = document.getElementById('detail-backdrop');
+  const detailPanel = document.getElementById('detail-panel');
+  const detailName = document.getElementById('detail-name');
+  const detailRemaining = document.getElementById('detail-remaining');
+  const detailEnds = document.getElementById('detail-ends');
+  const detailMode = document.getElementById('detail-mode');
+  const detailClose = document.getElementById('detail-close');
+  const detailRemove = document.getElementById('detail-remove');
+  const themeOptionsEl = document.getElementById('theme-options');
+  const metaTheme = document.getElementById('meta-theme');
+
+  const THEME_STORAGE_KEY = 'countdown-theme-v1';
+  /** @type {{ id: string, label: string, swatch: string }[]} */
+  const THEME_CHOICES = [
+    { id: 'sunset', label: 'Auringonlasku', swatch: 'linear-gradient(135deg,#ea580c,#f59e0b)' },
+    { id: 'ocean', label: 'Meri', swatch: 'linear-gradient(135deg,#0284c7,#2563eb)' },
+    { id: 'forest', label: 'Metsä', swatch: 'linear-gradient(135deg,#15803d,#22c55e)' },
+    { id: 'berry', label: 'Marja', swatch: 'linear-gradient(135deg,#a21caf,#c026d3)' },
+  ];
+
+  /** @type {{ id: string, name: string, targetEndMs: number, mode: string, eventLabel: string, durationTotalMs: number }[]} */
+  let timers = [];
+  let selectedId = null;
+  let raf = null;
+  let lastRowClickId = null;
+  let lastRowClickTs = 0;
+
+  let totalMs = 0;
+  let remainingMs = 0;
+  let mode = null;
+  let eventTargetMs = 0;
+
+  function swPost(data) {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      try {
+        navigator.serviceWorker.controller.postMessage(data);
+      } catch (e) {}
+    }
+  }
+
+  function syncAllToServiceWorker() {
+    swPost({ type: 'COUNTDOWN_SYNC_ALL', timers: timers.map((t) => ({ ...t })) });
+  }
+
+  function syncOneToServiceWorker(t) {
+    swPost({
+      type: 'COUNTDOWN_SYNC',
+      id: t.id,
+      name: t.name,
+      targetEndMs: t.targetEndMs,
+      mode: t.mode,
+      eventLabel: t.eventLabel || '',
+      durationTotalMs: t.durationTotalMs,
+    });
+  }
+
+  function removeFromServiceWorker(id) {
+    swPost({ type: 'COUNTDOWN_REMOVE', id });
+  }
+
+  function applyTheme(themeId) {
+    const t = THEME_CHOICES.find((x) => x.id === themeId) || THEME_CHOICES[0];
+    const root = document.documentElement;
+    if (t.id === 'sunset') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', t.id);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, t.id);
+    } catch (e) {}
+    const cs = getComputedStyle(root);
+    const col = cs.getPropertyValue('--meta-theme').trim() || '#ea580c';
+    if (metaTheme) metaTheme.setAttribute('content', col);
+    document.querySelectorAll('#theme-options [data-theme-id]').forEach((btn) => {
+      const on = btn.getAttribute('data-theme-id') === t.id;
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      if (on) {
+        btn.style.boxShadow = '0 0 0 2px white, 0 0 0 4px var(--accent)';
+      } else {
+        btn.style.boxShadow = '';
+      }
+    });
+  }
+
+  function initThemePicker() {
+    let saved = 'sunset';
+    try {
+      const raw = localStorage.getItem(THEME_STORAGE_KEY);
+      if (raw && THEME_CHOICES.some((x) => x.id === raw)) saved = raw;
+    } catch (e) {}
+    THEME_CHOICES.forEach((opt) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('data-theme-id', opt.id);
+      btn.setAttribute('role', 'radio');
+      btn.setAttribute('aria-checked', 'false');
+      btn.className = 'flex items-center gap-2 px-3 py-2 rounded-2xl border-2 border-gray-200 bg-white text-xs font-bold text-gray-700 active:scale-95 transition-transform';
+      const sw = document.createElement('span');
+      sw.className = 'w-5 h-5 rounded-full shrink-0 border border-black/10';
+      sw.style.background = opt.swatch;
+      const lab = document.createElement('span');
+      lab.textContent = opt.label;
+      btn.appendChild(sw);
+      btn.appendChild(lab);
+      btn.addEventListener('click', () => applyTheme(opt.id));
+      themeOptionsEl.appendChild(btn);
+    });
+    applyTheme(saved);
+  }
+
+  async function tryPersistStorageAndPeriodicSync() {
+    if (navigator.storage && navigator.storage.persist) {
+      try {
+        await navigator.storage.persist();
+      } catch (e) {}
+    }
+    if ('serviceWorker' in navigator && 'periodicSync' in ServiceWorkerRegistration.prototype) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.periodicSync.register('countdown-check', { minInterval: 60 * 1000 });
+      } catch (e) {}
+    }
+  }
+
+  function removeTimerById(id) {
+    if (!id) return;
+    removeFromServiceWorker(id);
+    const closedId = detailPanel.dataset.timerId;
+    if (closedId === id) closeDetail();
+    timers = timers.filter((t) => t.id !== id);
+    if (selectedId === id) selectedId = null;
+    ensureSelectedId();
+    syncAllToServiceWorker();
+    renderTimerList();
+    refreshMainDisplay();
+    applyFormPreviewFromMode();
+    if (timers.length === 0) stopLoop();
+  }
+
+  function requestTimersFromServiceWorker() {
+    swPost({ type: 'COUNTDOWN_GET_ACTIVE' });
+  }
+
+  function newId() {
+    return (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `t-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  function getSelected() {
+    return timers.find((t) => t.id === selectedId) || null;
+  }
+
+  function remainingFor(t) {
+    return Math.max(0, t.targetEndMs - Date.now());
+  }
+
+  function notifyDoneForTimer(t) {
+    if (!t || !('Notification' in window) || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible') return;
+    try {
+      new Notification('Paras countdown-äppi ikinä', {
+        body: `${t.name || 'Ajastin'} — aika täynnä!`,
+        icon: 'icon.svg',
+        tag: `countdown-end-page-${t.id}`,
+      });
+    } catch (e) {}
+  }
+
+  function pad(n) {
+    return String(Math.max(0, Math.floor(n))).padStart(2, '0');
+  }
+
+  function parseInputs() {
+    const h = Math.min(99, Math.max(0, parseInt(inH.value, 10) || 0));
+    const m = Math.min(59, Math.max(0, parseInt(inM.value, 10) || 0));
+    const s = Math.min(59, Math.max(0, parseInt(inS.value, 10) || 0));
+    inH.value = h;
+    inM.value = m;
+    inS.value = s;
+    return ((h * 3600) + (m * 60) + s) * 1000;
+  }
+
+  function parseEventTargetMs() {
+    const raw = eventDatetime.value;
+    if (!raw) return 0;
+    const t = new Date(raw).getTime();
+    if (!Number.isFinite(t)) return 0;
+    return t;
+  }
+
+  function formatEventTime(ts) {
+    const d = new Date(ts);
+    return d.toLocaleString('fi-FI', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  const MS_PER_SEC = 1000;
+  const SEC_PER_MIN = 60;
+  const SEC_PER_HOUR = 3600;
+  const SEC_PER_DAY = 24 * SEC_PER_HOUR;
+  const SEC_PER_YEAR = 365 * SEC_PER_DAY;
+
+  /**
+   * @param {number} ms
+   * @param {'ceil'|'floor'} round
+   */
+  function formatDurationFi(ms, round) {
+    const secTotal =
+      round === 'ceil'
+        ? Math.max(0, Math.ceil(ms / MS_PER_SEC))
+        : Math.max(0, Math.floor(ms / MS_PER_SEC));
+    if (secTotal === 0) return '0 sekuntia';
+
+    let sec = secTotal;
+    const years = Math.floor(sec / SEC_PER_YEAR);
+    sec -= years * SEC_PER_YEAR;
+    const days = Math.floor(sec / SEC_PER_DAY);
+    sec -= days * SEC_PER_DAY;
+    const hours = Math.floor(sec / SEC_PER_HOUR);
+    sec -= hours * SEC_PER_HOUR;
+    const minutes = Math.floor(sec / SEC_PER_MIN);
+    sec -= minutes * SEC_PER_MIN;
+    const seconds = sec;
+
+    /** @param {number} n @param {string} one @param {string} many */
+    function unit(n, one, many) {
+      return n === 1 ? `${n} ${one}` : `${n} ${many}`;
+    }
+
+    const parts = [];
+    if (years) parts.push(unit(years, 'vuosi', 'vuotta'));
+    if (days) parts.push(unit(days, 'päivä', 'päivää'));
+    if (hours) parts.push(unit(hours, 'tunti', 'tuntia'));
+    if (minutes) parts.push(unit(minutes, 'minuutti', 'minuuttia'));
+    if (seconds || parts.length === 0) parts.push(unit(seconds, 'sekunti', 'sekuntia'));
+
+    return parts.join(', ');
+  }
+
+  /** Jäljellä oleva aika (pyöristys ylös kuten aiemmin). */
+  function formatMs(ms) {
+    return formatDurationFi(ms, 'ceil');
+  }
+
+  /** Tallennettu alkuperäinen kesto (kokonaiset sekunnit alaspäin). */
+  function formatStoredDurationFi(ms) {
+    return formatDurationFi(ms, 'floor');
+  }
+
+  function updateRingForSelection() {
+    const t = getSelected();
+    if (!t) {
+      ring.style.strokeDasharray = String(RING_LEN);
+      ring.style.strokeDashoffset = String(RING_LEN);
+      return;
+    }
+    const rem = remainingFor(t);
+    const tot = t.durationTotalMs > 0 ? t.durationTotalMs : rem;
+    if (tot <= 0) {
+      ring.style.strokeDasharray = String(RING_LEN);
+      ring.style.strokeDashoffset = String(RING_LEN);
+      return;
+    }
+    const p = rem / tot;
+    ring.style.strokeDasharray = String(RING_LEN);
+    ring.style.strokeDashoffset = String(RING_LEN * (1 - Math.min(1, Math.max(0, p))));
+  }
+
+  function refreshMainDisplay() {
+    const t = getSelected();
+    if (!t) {
+      display.textContent = formatMs(remainingMs);
+      updateRingForSelection();
+      return;
+    }
+    const rem = remainingFor(t);
+    display.textContent = formatMs(rem);
+    remainingMs = rem;
+    totalMs = t.durationTotalMs > 0 ? t.durationTotalMs : rem;
+    updateRingForSelection();
+    if (!detailPanel.classList.contains('hidden') && detailPanel.dataset.timerId === t.id) {
+      detailRemaining.textContent = formatMs(rem);
+      detailEnds.textContent = formatEventTime(t.targetEndMs);
+    }
+  }
+
+  function updateListRowTimes() {
+    activeTimersList.querySelectorAll('button[data-timer-id]').forEach((row) => {
+      const id = row.getAttribute('data-timer-id');
+      const t = timers.find((x) => x.id === id);
+      const tm = row.querySelector('.timer-row-time');
+      if (t && tm) tm.textContent = formatMs(remainingFor(t));
+    });
+  }
+
+  function setStatus(text, subText) {
+    statusEl.textContent = text;
+    sub.textContent = subText || '';
+  }
+
+  function updateModeButtons() {
+    const durationOn = mode === 'duration';
+    const eventOn = mode === 'event';
+    modeDuration.className = durationOn
+      ? 'px-4 py-2 rounded-2xl text-sm font-bold border-2 theme-mode-on active:scale-95 transition-transform'
+      : 'px-4 py-2 rounded-2xl text-sm font-bold border-2 bg-white text-gray-600 theme-mode-off active:scale-95 transition-transform';
+    modeEvent.className = eventOn
+      ? 'px-4 py-2 rounded-2xl text-sm font-bold border-2 theme-mode-on active:scale-95 transition-transform'
+      : 'px-4 py-2 rounded-2xl text-sm font-bold border-2 bg-white text-gray-600 theme-mode-off active:scale-95 transition-transform';
+    presetCard.classList.toggle('hidden', !durationOn);
+    durationCard.classList.toggle('hidden', !durationOn);
+    eventCard.classList.toggle('hidden', !eventOn);
+    document.querySelectorAll('.preset').forEach(b => { b.disabled = mode !== 'duration'; });
+  }
+
+  /** Korostaa pikavalintaa, jos T/Min/Sek vastaa sitä (vain kestotila). */
+  function updatePresetHighlight() {
+    document.querySelectorAll('.preset').forEach((btn) => {
+      if (mode !== 'duration') {
+        btn.classList.remove('preset--active');
+        return;
+      }
+      const presetSec = parseInt(btn.getAttribute('data-preset'), 10);
+      const h = Math.min(99, Math.max(0, parseInt(inH.value, 10) || 0));
+      const m = Math.min(59, Math.max(0, parseInt(inM.value, 10) || 0));
+      const s = Math.min(59, Math.max(0, parseInt(inS.value, 10) || 0));
+      const totalSec = h * 3600 + m * 60 + s;
+      btn.classList.toggle('preset--active', Number.isFinite(presetSec) && totalSec > 0 && totalSec === presetSec);
+    });
+  }
+
+  function applyFormPreviewFromMode() {
+    if (mode === null) {
+      totalMs = 0;
+      remainingMs = 0;
+      setStatus('Valmis', timers.length ? `${timers.length} ajastinta käynnissä` : 'Valitse aika yllä');
+    } else if (mode === 'duration') {
+      totalMs = parseInputs();
+      remainingMs = totalMs;
+      setStatus('Valmis', timers.length ? `${timers.length} ajastinta käynnissä` : '');
+    } else {
+      const nextTarget = parseEventTargetMs();
+      if (nextTarget) {
+        const left = Math.max(0, nextTarget - Date.now());
+        totalMs = left;
+        remainingMs = left;
+        setStatus('Valmis', `Kohti: ${formatEventTime(nextTarget)}`);
+      } else {
+        totalMs = 0;
+        remainingMs = 0;
+        setStatus('Valmis', timers.length ? `${timers.length} ajastinta käynnissä` : 'Valitse tapahtuman aika');
+      }
+    }
+    refreshMainDisplay();
+    updatePresetHighlight();
+  }
+
+  function switchMode(nextMode) {
+    mode = nextMode;
+    updateModeButtons();
+    applyFormPreviewFromMode();
+  }
+
+  function stopLoop() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = null;
+  }
+
+  function showTopBar(show) {
+    activeBarWrap.classList.toggle('hidden', !show);
+    document.body.classList.toggle('has-active-timer', show);
+  }
+
+  function renderTimerList() {
+    activeTimersList.replaceChildren();
+    if (timers.length === 0) {
+      showTopBar(false);
+      return;
+    }
+    showTopBar(true);
+    const frag = document.createDocumentFragment();
+    const sorted = [...timers].sort((a, b) => a.targetEndMs - b.targetEndMs);
+    sorted.forEach((t) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'w-full min-w-0 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 text-left theme-row-press transition-colors';
+      row.setAttribute('data-timer-id', t.id);
+      if (t.id === selectedId) row.classList.add('theme-row-active');
+      const left = document.createElement('div');
+      left.className = 'min-w-0 flex-1';
+      const nm = document.createElement('div');
+      nm.className = 'text-xs font-bold text-gray-600 truncate';
+      nm.textContent = t.name;
+      const tm = document.createElement('div');
+      tm.className = 'timer-row-time shrink-0 text-sm sm:text-base font-black theme-accent-text leading-tight text-right break-words max-w-[55%]';
+      tm.textContent = formatMs(remainingFor(t));
+      left.appendChild(nm);
+      left.appendChild(tm);
+      const chev = document.createElement('span');
+      chev.className = 'text-xs font-bold theme-accent-muted shrink-0';
+      chev.textContent = '›';
+      row.appendChild(left);
+      row.appendChild(chev);
+      row.addEventListener('click', () => {
+        const now = Date.now();
+        if (lastRowClickId === t.id && now - lastRowClickTs < 450) {
+          lastRowClickId = null;
+          lastRowClickTs = 0;
+          removeTimerById(t.id);
+          return;
+        }
+        lastRowClickId = t.id;
+        lastRowClickTs = now;
+        openDetailFor(t.id);
+      });
+      frag.appendChild(row);
+    });
+    activeTimersList.appendChild(frag);
+  }
+
+  function openDetailFor(id) {
+    const t = timers.find((x) => x.id === id);
+    if (!t) return;
+    selectedId = id;
+    renderTimerList();
+    detailPanel.dataset.timerId = id;
+    detailName.textContent = t.name;
+    detailRemaining.textContent = formatMs(remainingFor(t));
+    detailEnds.textContent = formatEventTime(t.targetEndMs);
+    detailMode.textContent = t.mode === 'event'
+      ? 'Tapahtuma-aikaan'
+      : `Alkuperäinen kesto ${formatStoredDurationFi(t.durationTotalMs > 0 ? t.durationTotalMs : remainingFor(t))}`;
+    detailBackdrop.classList.remove('hidden');
+    detailPanel.classList.remove('hidden');
+  }
+
+  function closeDetail() {
+    detailBackdrop.classList.add('hidden');
+    detailPanel.classList.add('hidden');
+    delete detailPanel.dataset.timerId;
+  }
+
+  function showCelebrationBatch(items) {
+    if (!items || items.length === 0) return;
+    const first = items[0];
+    celebrateTitle.textContent = items.length === 1
+      ? ((first.name && first.name.trim()) || 'Ajastin')
+      : `${items.length} ajastinta`;
+    celebrateDefault.classList.remove('hidden');
+    celebrateDefault.textContent = items.length > 1
+      ? `${items.length} ajastinta päättyi.`
+      : 'Hienoa — saavutit mitän asettamasi.';
+    overlay.classList.remove('hidden');
+    overlay.classList.add('flex');
+    playFanfare();
+    if (navigator.vibrate) navigator.vibrate([80, 50, 80, 50, 120]);
+    confettiBurst();
+  }
+
+  function tick() {
+    if (timers.length === 0) {
+      stopLoop();
+      return;
+    }
+    const now = Date.now();
+    const done = timers.filter((t) => t.targetEndMs <= now);
+    if (done.length) {
+      const ids = done.map((t) => t.id);
+      done.forEach((t) => notifyDoneForTimer(t));
+      showCelebrationBatch(done);
+      removeEndedByIds(ids);
+    }
+    updateListRowTimes();
+    refreshMainDisplay();
+    raf = requestAnimationFrame(tick);
+  }
+
+  function ensureTickLoop() {
+    if (!raf && timers.length) raf = requestAnimationFrame(tick);
+  }
+
+  function playFanfare() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ac = new Ctx();
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+      notes.forEach((freq, i) => {
+        const o = ac.createOscillator();
+        const g = ac.createGain();
+        o.type = 'triangle';
+        o.frequency.value = freq;
+        g.gain.value = 0;
+        o.connect(g);
+        g.connect(ac.destination);
+        const t0 = ac.currentTime + i * 0.12;
+        o.start(t0);
+        g.gain.setValueAtTime(0, t0);
+        g.gain.linearRampToValueAtTime(0.12, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
+        o.stop(t0 + 0.4);
+      });
+    } catch (e) {}
+  }
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth * devicePixelRatio;
+    canvas.height = window.innerHeight * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+
+  function confettiBurst() {
+    resizeCanvas();
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const cs = getComputedStyle(document.documentElement);
+    const accent = cs.getPropertyValue('--accent').trim() || '#ea580c';
+    const muted = cs.getPropertyValue('--accent-muted').trim() || '#fb923c';
+    const colors = [accent, muted, '#fbbf24', '#22c55e', '#3b82f6', '#a855f7', '#f472b6'];
+    const pieces = 120;
+    const parts = [];
+    for (let i = 0; i < pieces; i++) {
+      parts.push({
+        x: w / 2 + (Math.random() - 0.5) * 80,
+        y: h * 0.35,
+        vx: (Math.random() - 0.5) * 14,
+        vy: -Math.random() * 12 - 4,
+        g: 0.35 + Math.random() * 0.2,
+        r: 4 + Math.random() * 6,
+        rot: Math.random() * Math.PI * 2,
+        vr: (Math.random() - 0.5) * 0.3,
+        c: colors[Math.floor(Math.random() * colors.length)]
+      });
+    }
+    let frame = 0;
+    function step() {
+      frame++;
+      ctx.clearRect(0, 0, w, h);
+      let alive = false;
+      parts.forEach(p => {
+        p.vy += p.g;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.vr;
+        if (p.y < h + 40) alive = true;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.c;
+        ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6);
+        ctx.restore();
+      });
+      if (alive && frame < 180) requestAnimationFrame(step);
+      else ctx.clearRect(0, 0, w, h);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function start() {
+    const name = timerNameInput.value.trim();
+    if (!name) {
+      setStatus('Puuttuu', 'Anna ajastimelle nimi');
+      timerNameInput.focus();
+      return;
+    }
+    if (timers.length >= MAX_TIMERS) {
+      setStatus('Raja', `Enintään ${MAX_TIMERS} ajastinta`);
+      return;
+    }
+
+    if (!mode) {
+      setStatus('Virhe', 'Valitse ensin aika tai tapahtuma');
+      return;
+    }
+
+    let durationTotalMs = 0;
+    let targetEnd = 0;
+    let tMode = mode;
+    let eventLabel = '';
+
+    if (mode === 'event') {
+      const parsedTarget = parseEventTargetMs();
+      const now = Date.now();
+      if (!parsedTarget) {
+        setStatus('Virhe', 'Valitse tapahtuman päivämäärä ja aika');
+        return;
+      }
+      if (parsedTarget <= now) {
+        setStatus('Virhe', 'Tapahtuma-aika on jo mennyt');
+        return;
+      }
+      targetEnd = parsedTarget;
+      durationTotalMs = parsedTarget - now;
+    } else {
+      const dur = parseInputs();
+      if (dur <= 0) {
+        setStatus('Virhe', 'Aseta vähintään yksi sekunti');
+        return;
+      }
+      durationTotalMs = dur;
+      targetEnd = Date.now() + dur;
+    }
+
+    const rec = {
+      id: newId(),
+      name: name.slice(0, 80),
+      targetEndMs: targetEnd,
+      mode: tMode,
+      eventLabel,
+      durationTotalMs,
+    };
+    timers.push(rec);
+    selectedId = rec.id;
+    ensureSelectedId();
+    syncOneToServiceWorker(rec);
+    renderTimerList();
+    applyFormPreviewFromMode();
+    ensureTickLoop();
+
+    timerNameInput.value = '';
+    setStatus('Lisätty', `${timers.length} ajastinta — voit käynnistää uuden`);
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }
+
+  function removeEndedByIds(ids) {
+    const set = new Set(ids);
+    const closedId = detailPanel.dataset.timerId;
+    if (closedId && set.has(closedId)) closeDetail();
+    timers = timers.filter((t) => !set.has(t.id));
+    ensureSelectedId();
+    syncAllToServiceWorker();
+    renderTimerList();
+    refreshMainDisplay();
+    applyFormPreviewFromMode();
+    if (timers.length === 0) stopLoop();
+  }
+
+  function mergeRestoredTimers(incoming) {
+    if (!Array.isArray(incoming) || incoming.length === 0) return;
+    const valid = incoming.filter((t) => t && t.id && t.targetEndMs > Date.now());
+    if (valid.length === 0) return;
+    const byId = new Map(timers.map((t) => [t.id, t]));
+    valid.forEach((t) => byId.set(t.id, { ...t }));
+    timers = Array.from(byId.values()).filter((t) => t.targetEndMs > Date.now());
+    if (!selectedId || !timers.some((x) => x.id === selectedId)) {
+      const sorted = [...timers].sort((a, b) => a.targetEndMs - b.targetEndMs);
+      selectedId = sorted[0] ? sorted[0].id : null;
+    }
+    renderTimerList();
+    applyFormPreviewFromMode();
+    ensureTickLoop();
+    syncAllToServiceWorker();
+  }
+
+  function ensureSelectedId() {
+    if (timers.length === 0) {
+      selectedId = null;
+      return;
+    }
+    if (!selectedId || !timers.some((x) => x.id === selectedId)) {
+      const sorted = [...timers].sort((a, b) => a.targetEndMs - b.targetEndMs);
+      selectedId = sorted[0].id;
+    }
+  }
+
+  btnStart.addEventListener('click', start);
+  modeDuration.addEventListener('click', () => switchMode('duration'));
+  modeEvent.addEventListener('click', () => switchMode('event'));
+
+  detailClose.addEventListener('click', closeDetail);
+  detailBackdrop.addEventListener('click', closeDetail);
+  detailRemove.addEventListener('click', () => {
+    const id = detailPanel.dataset.timerId;
+    if (id) removeTimerById(id);
+  });
+
+  btnDismiss.addEventListener('click', () => {
+    overlay.classList.add('hidden');
+    overlay.classList.remove('flex');
+  });
+
+  document.querySelectorAll('.preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (mode !== 'duration') return;
+      const sec = parseInt(btn.getAttribute('data-preset'), 10);
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      inH.value = h;
+      inM.value = m;
+      inS.value = s;
+      applyFormPreviewFromMode();
+    });
+  });
+
+  [inH, inM, inS].forEach(el => {
+    el.addEventListener('change', () => {
+      if (mode === 'duration') applyFormPreviewFromMode();
+    });
+  });
+
+  eventDatetime.addEventListener('change', () => {
+    if (mode === 'event') applyFormPreviewFromMode();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && timers.length) {
+      const now = Date.now();
+      const done = timers.filter((t) => t.targetEndMs <= now);
+      if (done.length) {
+        const ids = done.map((t) => t.id);
+        done.forEach((t) => notifyDoneForTimer(t));
+        showCelebrationBatch(done);
+        removeEndedByIds(ids);
+      } else {
+        renderTimerList();
+        refreshMainDisplay();
+      }
+    }
+  });
+
+  window.addEventListener('resize', () => { if (!overlay.classList.contains('hidden')) resizeCanvas(); });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (ev) => {
+      const d = ev.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'COUNTDOWN_ENDED_BATCH' && Array.isArray(d.ended) && d.ended.length) {
+        const ids = new Set(d.ended.map((x) => x.id).filter(Boolean));
+        const hadAny = timers.some((t) => ids.has(t.id));
+        if (hadAny) {
+          showCelebrationBatch(d.ended.map((x) => ({ name: x.name, id: x.id })));
+        }
+        removeEndedByIds([...ids]);
+      }
+      if (d.type === 'COUNTDOWN_ACTIVE_STATE' && Array.isArray(d.timers)) {
+        mergeRestoredTimers(d.timers);
+      }
+    });
+
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      reg.update();
+      const askRestore = () => requestTimersFromServiceWorker();
+      if (navigator.serviceWorker.controller) {
+        askRestore();
+      } else {
+        navigator.serviceWorker.addEventListener('controllerchange', () => askRestore(), { once: true });
+      }
+    }).catch(() => {});
+  }
+
+  initThemePicker();
+  tryPersistStorageAndPeriodicSync();
+
+  totalMs = parseInputs();
+  remainingMs = totalMs;
+  ring.style.strokeDasharray = String(RING_LEN);
+  updateModeButtons();
+  applyFormPreviewFromMode();
+})();
+</script>
+</body>
+</html>
