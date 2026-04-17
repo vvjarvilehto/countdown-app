@@ -1,4 +1,4 @@
-const CACHE = 'countdown-v1';
+const CACHE = 'countdown-v2';
 
 const COUNTDOWN_DB = 'countdown-app';
 const COUNTDOWN_DB_VER = 2;
@@ -10,6 +10,12 @@ const COUNTDOWN_WAKE_CHUNK_MS = 60 * 1000;
 
 let countdownAlarmTimer = null;
 let countdownFetchCheckAt = 0;
+let countdownReleaseCheckAt = 0;
+
+const APP_RELEASE_PATH = 'app-release.json';
+const APP_RELEASE_SEEN_KEY = 'app_release_seen_version';
+/** Vältä toistuvia tarkistuksia samassa SW-istunnossa (ms). */
+const APP_RELEASE_CHECK_INTERVAL_MS = 60 * 1000;
 
 function countdownClearAlarmTimer() {
   if (countdownAlarmTimer) {
@@ -85,6 +91,60 @@ async function countdownIdbRemoveTimer(id) {
 
 async function countdownIdbClearAllTimers() {
   await countdownIdbSaveTimers([]);
+}
+
+async function countdownIdbGetSeenReleaseVersion() {
+  const db = await countdownOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(COUNTDOWN_STORE, 'readonly');
+    const r = tx.objectStore(COUNTDOWN_STORE).get(APP_RELEASE_SEEN_KEY);
+    r.onsuccess = () => resolve(typeof r.result === 'string' ? r.result : '');
+    r.onerror = () => reject(r.error);
+  });
+}
+
+async function countdownIdbSetSeenReleaseVersion(v) {
+  const db = await countdownOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(COUNTDOWN_STORE, 'readwrite');
+    tx.objectStore(COUNTDOWN_STORE).put(v, APP_RELEASE_SEEN_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function countdownMaybeNotifyAppRelease() {
+  try {
+    const res = await fetch(new URL(APP_RELEASE_PATH, self.location.href), {
+      cache: 'no-cache',
+    });
+    if (!res || !res.ok) return;
+    const data = await res.json();
+    const version = data && data.version != null ? String(data.version) : '';
+    if (!version) return;
+    const seen = await countdownIdbGetSeenReleaseVersion();
+    if (seen === version) return;
+
+    const title = (data.title && String(data.title).trim()) || 'Countdown — uusi versio';
+    let body = '';
+    if (Array.isArray(data.lines) && data.lines.length) {
+      body = data.lines.map((x) => String(x).trim()).filter(Boolean).join('\n');
+    }
+    if (!body && data.body) body = String(data.body).trim();
+    if (!body) body = 'Sovellukseen on tullut päivitys.';
+
+    await self.registration.showNotification(title, {
+      body,
+      icon: 'icon.svg',
+      badge: 'icon.svg',
+      tag: `app-release-${version}`,
+      renotify: true,
+      data: { type: 'app-release', url: './' },
+      requireInteraction: false,
+      silent: false,
+    });
+    await countdownIdbSetSeenReleaseVersion(version);
+  } catch (e) {}
 }
 
 async function countdownNotifyDone(rec) {
@@ -164,12 +224,14 @@ async function countdownCheckExpiredFromIdb() {
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
+  const data = e.notification.data && typeof e.notification.data === 'object' ? e.notification.data : {};
+  const openUrl = typeof data.url === 'string' && data.url ? data.url : './';
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const c of clientList) {
         if ('focus' in c) return c.focus();
       }
-      if (self.clients.openWindow) return self.clients.openWindow('./countdown.html');
+      if (self.clients.openWindow) return self.clients.openWindow(openUrl);
     })
   );
 });
@@ -228,6 +290,11 @@ self.addEventListener('message', (e) => {
         } catch (err) {}
       })
     );
+    return;
+  }
+
+  if (d.type === 'APP_RELEASE_CHECK') {
+    e.waitUntil(countdownMaybeNotifyAppRelease());
   }
 });
 
@@ -235,6 +302,7 @@ const PRECACHE = [
   './',
   'index.html',
   'manifest.json',
+  'app-release.json',
   'icon.svg',
   'sw.js',
 ];
@@ -257,6 +325,7 @@ self.addEventListener('activate', e => {
       ))
       .then(() => self.clients.claim())
       .then(() => countdownScheduleFromIdb())
+      .then(() => countdownMaybeNotifyAppRelease())
   );
 });
 
@@ -302,6 +371,11 @@ self.addEventListener('fetch', e => {
   if (sameOrigin && Date.now() - countdownFetchCheckAt > 3000) {
     countdownFetchCheckAt = Date.now();
     countdownCheckExpiredFromIdb().catch(() => {});
+  }
+
+  if (sameOrigin && Date.now() - countdownReleaseCheckAt > APP_RELEASE_CHECK_INTERVAL_MS) {
+    countdownReleaseCheckAt = Date.now();
+    countdownMaybeNotifyAppRelease().catch(() => {});
   }
 
   // Sama origin (sivut, skriptit, manifest): verkko ensin — Safari/PWA ei jää vanhaan cacheen.

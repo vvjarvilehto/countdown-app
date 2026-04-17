@@ -307,7 +307,7 @@
     </div>
 
     <p id="hint-notify" class="text-center text-xs text-gray-400 font-medium">
-      Ilmoitukset: salli ne. Taustalla muistutus tulee useimmiten; jos suljet PWA:n kokonaan, puhelin voi keskeyttää taustatyön — Chrome Androidissa taustasynkronointi auttaa, iOS rajoittaa usein.
+      Ilmoitukset: salli ne. Taustalla muistutus tulee useimmiten; voit saada myös ilmoituksen uusista ominaisuuksista (kun ne julkaistaan). Jos suljet PWA:n kokonaan, puhelin voi keskeyttää taustatyön — Chrome Androidissa taustasynkronointi auttaa, iOS rajoittaa usein.
     </p>
   </div>
 
@@ -389,6 +389,12 @@
         navigator.serviceWorker.controller.postMessage(data);
       } catch (e) {}
     }
+  }
+
+  /** Pyydä taustatyötä tarkistamaan uusi sovellusversio (PWA-ilmoitus, jos käyttäjä on sallinut ilmoitukset). */
+  function requestAppReleaseNotificationCheck() {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    swPost({ type: 'APP_RELEASE_CHECK' });
   }
 
   function syncAllToServiceWorker() {
@@ -1065,17 +1071,20 @@
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && timers.length) {
-      const now = Date.now();
-      const done = timers.filter((t) => t.targetEndMs <= now);
-      if (done.length) {
-        const ids = done.map((t) => t.id);
-        done.forEach((t) => notifyDoneForTimer(t));
-        showCelebrationBatch(done);
-        removeEndedByIds(ids);
-      } else {
-        renderTimerList();
-        refreshMainDisplay();
+    if (!document.hidden) {
+      requestAppReleaseNotificationCheck();
+      if (timers.length) {
+        const now = Date.now();
+        const done = timers.filter((t) => t.targetEndMs <= now);
+        if (done.length) {
+          const ids = done.map((t) => t.id);
+          done.forEach((t) => notifyDoneForTimer(t));
+          showCelebrationBatch(done);
+          removeEndedByIds(ids);
+        } else {
+          renderTimerList();
+          refreshMainDisplay();
+        }
       }
     }
   });
@@ -1101,7 +1110,10 @@
 
     navigator.serviceWorker.register('sw.js').then((reg) => {
       reg.update();
-      const askRestore = () => requestTimersFromServiceWorker();
+      const askRestore = () => {
+        requestTimersFromServiceWorker();
+        requestAppReleaseNotificationCheck();
+      };
       if (navigator.serviceWorker.controller) {
         askRestore();
       } else {
