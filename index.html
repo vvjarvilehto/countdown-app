@@ -307,8 +307,19 @@
     </div>
 
     <p id="hint-notify" class="text-center text-xs text-gray-400 font-medium">
-      Ilmoitukset: salli ne. Taustalla muistutus tulee useimmiten; voit saada myös ilmoituksen uusista ominaisuuksista (kun ne julkaistaan). Jos suljet PWA:n kokonaan, puhelin voi keskeyttää taustatyön — Chrome Androidissa taustasynkronointi auttaa, iOS rajoittaa usein.
+      Päivityksistä näet lyhyen listauksen sovelluksessa seuraavalla käynnistyksellä (kun uusi versio on julkaistu). Voit halutessasi sallia myös ilmoitukset: taustamuistutus ja mahdollinen push uusista ominaisuuksista. Jos suljet PWA:n kokonaan, puhelin voi keskeyttää taustatyön — Chrome Androidissa taustasynkronointi auttaa, iOS rajoittaa usein.
     </p>
+  </div>
+
+  <!-- Mitä uutta (sama sisältö kuin app-release.json; näytetään seuraavalla käynnistyksellä uuden version jälkeen) -->
+  <div id="release-notes-backdrop" class="fixed inset-0 z-[85] hidden bg-black/40 backdrop-blur-sm" aria-hidden="true"></div>
+  <div id="release-notes-panel" class="fixed left-1/2 top-1/2 z-[90] hidden w-[min(92vw,24rem)] max-h-[min(85vh,32rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-white p-6 shadow-2xl border theme-detail-border flex flex-col" role="dialog" aria-modal="true" aria-labelledby="release-notes-title">
+    <h2 id="release-notes-title" class="text-center text-lg font-black text-gray-900 mb-1">Mitä uutta</h2>
+    <p class="text-center text-xs font-semibold text-gray-400 mb-3">Uusi versio julkaistu</p>
+    <div id="release-notes-body" class="text-sm font-semibold text-gray-700 overflow-y-auto flex-1 min-h-0 mb-4 pr-1"></div>
+    <button type="button" id="release-notes-dismiss" class="w-full py-3 rounded-2xl font-black text-white theme-btn-solid transition-colors shrink-0">
+      Selvä
+    </button>
   </div>
 
   <!-- Loppujuhla-overlay -->
@@ -361,8 +372,18 @@
   const detailRemove = document.getElementById('detail-remove');
   const themeOptionsEl = document.getElementById('theme-options');
   const metaTheme = document.getElementById('meta-theme');
+  const releaseNotesBackdrop = document.getElementById('release-notes-backdrop');
+  const releaseNotesPanel = document.getElementById('release-notes-panel');
+  const releaseNotesTitle = document.getElementById('release-notes-title');
+  const releaseNotesBody = document.getElementById('release-notes-body');
+  const releaseNotesDismiss = document.getElementById('release-notes-dismiss');
 
   const THEME_STORAGE_KEY = 'countdown-theme-v1';
+  /** Sama kuin sw.js — yksi “nähty versio” sekä ilmoituksille että in-app -dialogille */
+  const IDB_NAME = 'countdown-app';
+  const IDB_VER = 2;
+  const IDB_STORE = 'timers';
+  const APP_RELEASE_SEEN_KEY = 'app_release_seen_version';
   /** @type {{ id: string, label: string, swatch: string }[]} */
   const THEME_CHOICES = [
     { id: 'sunset', label: 'Auringonlasku', swatch: 'linear-gradient(135deg,#ea580c,#f59e0b)' },
@@ -395,6 +416,113 @@
   function requestAppReleaseNotificationCheck() {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     swPost({ type: 'APP_RELEASE_CHECK' });
+  }
+
+  function appReleaseFetchUrl() {
+    const u = new URL('app-release.json', window.location.href);
+    u.searchParams.set('_deploy', String(Date.now()));
+    return u;
+  }
+
+  function idbOpen() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(IDB_NAME, IDB_VER);
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => resolve(req.result);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) {
+          db.createObjectStore(IDB_STORE);
+        }
+      };
+    });
+  }
+
+  async function idbGetSeenReleaseVersion() {
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const r = tx.objectStore(IDB_STORE).get(APP_RELEASE_SEEN_KEY);
+      r.onsuccess = () => resolve(typeof r.result === 'string' ? r.result : '');
+      r.onerror = () => reject(r.error);
+    });
+  }
+
+  async function idbSetSeenReleaseVersion(v) {
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(v, APP_RELEASE_SEEN_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /** @param {any} data app-release.json */
+  function formatReleaseNotesContent(data) {
+    const title = (data && data.title && String(data.title).trim()) || 'Mitä uutta';
+    let bodyHtml = '';
+    if (data && Array.isArray(data.lines) && data.lines.length) {
+      const items = data.lines.map((x) => String(x).trim()).filter(Boolean).map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+      bodyHtml = `<ul class="list-disc list-inside space-y-2 text-left">${items}</ul>`;
+    } else if (data && data.body) {
+      bodyHtml = `<p class="text-left">${escapeHtml(String(data.body).trim())}</p>`;
+    } else {
+      bodyHtml = '<p class="text-left">Sovellukseen on tullut päivitys.</p>';
+    }
+    return { title, bodyHtml };
+  }
+
+  function showReleaseNotesModal(title, bodyHtml) {
+    if (!releaseNotesPanel || !releaseNotesBackdrop || !releaseNotesTitle || !releaseNotesBody) return;
+    releaseNotesTitle.textContent = title;
+    releaseNotesBody.innerHTML = bodyHtml;
+    releaseNotesBackdrop.classList.remove('hidden');
+    releaseNotesPanel.classList.remove('hidden');
+    try {
+      releaseNotesDismiss.focus();
+    } catch (e) {}
+  }
+
+  function hideReleaseNotesModal() {
+    if (releaseNotesBackdrop) releaseNotesBackdrop.classList.add('hidden');
+    if (releaseNotesPanel) releaseNotesPanel.classList.add('hidden');
+    if (releaseNotesBody) releaseNotesBody.innerHTML = '';
+  }
+
+  async function maybeShowInAppReleaseNotes() {
+    try {
+      const res = await fetch(appReleaseFetchUrl(), { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const version = data && data.version != null ? String(data.version) : '';
+      if (!version) return;
+      const seen = await idbGetSeenReleaseVersion();
+      if (seen === version) return;
+      const { title, bodyHtml } = formatReleaseNotesContent(data);
+      showReleaseNotesModal(title, bodyHtml);
+    } catch (e) {}
+  }
+
+  async function dismissReleaseNotesAndMarkSeen() {
+    try {
+      const res = await fetch(appReleaseFetchUrl(), { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        const version = data && data.version != null ? String(data.version) : '';
+        if (version) await idbSetSeenReleaseVersion(version);
+      }
+    } catch (e) {}
+    hideReleaseNotesModal();
+    requestAppReleaseNotificationCheck();
   }
 
   function syncAllToServiceWorker() {
@@ -1072,7 +1200,7 @@
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-      requestAppReleaseNotificationCheck();
+      maybeShowInAppReleaseNotes();
       if (timers.length) {
         const now = Date.now();
         const done = timers.filter((t) => t.targetEndMs <= now);
@@ -1112,7 +1240,6 @@
       reg.update();
       const askRestore = () => {
         requestTimersFromServiceWorker();
-        requestAppReleaseNotificationCheck();
       };
       if (navigator.serviceWorker.controller) {
         askRestore();
@@ -1122,6 +1249,18 @@
     }).catch(() => {});
   }
 
+  if (releaseNotesDismiss) {
+    releaseNotesDismiss.addEventListener('click', () => { dismissReleaseNotesAndMarkSeen(); });
+  }
+  if (releaseNotesBackdrop) {
+    releaseNotesBackdrop.addEventListener('click', () => { dismissReleaseNotesAndMarkSeen(); });
+  }
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (!releaseNotesPanel || releaseNotesPanel.classList.contains('hidden')) return;
+    dismissReleaseNotesAndMarkSeen();
+  });
+
   initThemePicker();
   tryPersistStorageAndPeriodicSync();
 
@@ -1130,6 +1269,7 @@
   ring.style.strokeDasharray = String(RING_LEN);
   updateModeButtons();
   applyFormPreviewFromMode();
+  maybeShowInAppReleaseNotes();
 })();
 </script>
 </body>

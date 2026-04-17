@@ -10,13 +10,9 @@ const COUNTDOWN_WAKE_CHUNK_MS = 60 * 1000;
 
 let countdownAlarmTimer = null;
 let countdownFetchCheckAt = 0;
-let countdownReleaseCheckAt = 0;
 
 const APP_RELEASE_PATH = 'app-release.json';
 const APP_RELEASE_SEEN_KEY = 'app_release_seen_version';
-/** Vältä toistuvia tarkistuksia samassa SW-istunnossa (ms). */
-const APP_RELEASE_CHECK_INTERVAL_MS = 60 * 1000;
-
 /** GitHub Pages / CDN voivat välimuistittaa staattisia polkuja — haetaan aina tuore verkko-osoite. */
 function appReleaseFetchUrl() {
   const u = new URL(APP_RELEASE_PATH, self.location.href);
@@ -331,19 +327,13 @@ self.addEventListener('activate', e => {
       ))
       .then(() => self.clients.claim())
       .then(() => countdownScheduleFromIdb())
-      .then(() => countdownMaybeNotifyAppRelease())
   );
 });
 
 // Chrome: herättää SW:n ajoittain (vaatii käyttöoikeuden; ei kaikilla alustoilla)
 self.addEventListener('periodicsync', (e) => {
   if (e.tag === 'countdown-check') {
-    e.waitUntil(
-      Promise.all([
-        countdownCheckExpiredFromIdb(),
-        countdownMaybeNotifyAppRelease(),
-      ])
-    );
+    e.waitUntil(countdownCheckExpiredFromIdb());
   }
 });
 
@@ -382,11 +372,6 @@ self.addEventListener('fetch', e => {
   if (sameOrigin && Date.now() - countdownFetchCheckAt > 3000) {
     countdownFetchCheckAt = Date.now();
     countdownCheckExpiredFromIdb().catch(() => {});
-  }
-
-  if (sameOrigin && Date.now() - countdownReleaseCheckAt > APP_RELEASE_CHECK_INTERVAL_MS) {
-    countdownReleaseCheckAt = Date.now();
-    countdownMaybeNotifyAppRelease().catch(() => {});
   }
 
   // Sama origin (sivut, skriptit, manifest): verkko ensin — Safari/PWA ei jää vanhaan cacheen.
