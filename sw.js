@@ -1,4 +1,4 @@
-const CACHE = 'countdown-v2';
+const CACHE = 'countdown-v3';
 
 const COUNTDOWN_DB = 'countdown-app';
 const COUNTDOWN_DB_VER = 2;
@@ -301,6 +301,19 @@ self.addEventListener('fetch', e => {
   }
 
   const sameOrigin = url.origin === self.location.origin;
+
+  /** Julkaisumanifesti: älä tallenna Cache API:iin — muuten vanha JSON voi näkyä ilman PWA:n tappamista. */
+  const isAppReleaseJson =
+    url.pathname.endsWith('/app-release.json') || url.pathname.endsWith('app-release.json');
+
+  if (sameOrigin && isAppReleaseJson) {
+    e.respondWith(
+      fetch(e.request, { cache: 'no-store' }).catch(() =>
+        new Response('', { status: 504, statusText: 'Offline' })
+      )
+    );
+    return;
+  }
 
   if (sameOrigin && Date.now() - countdownFetchCheckAt > 3000) {
     countdownFetchCheckAt = Date.now();

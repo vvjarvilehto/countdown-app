@@ -418,6 +418,11 @@
 
   const APP_RELEASE_PATH = 'app-release.json';
 
+  /** Uudelleenhaku välilehden näkyviin tullessa — ei spämmää verkkoa (ei koske ensimmäistä latausta / bfcache-palautusta). */
+  const WHATS_NEW_RECHECK_MIN_MS = 25 * 1000;
+
+  let whatsNewLastAttemptAt = 0;
+
   function appReleaseFetchUrl() {
     const u = new URL(APP_RELEASE_PATH, window.location.href);
     u.searchParams.set('_deploy', String(Date.now()));
@@ -434,9 +439,16 @@
    * }>}
    */
   async function fetchAppReleaseManifest() {
-    const res = await fetch(appReleaseFetchUrl(), { cache: 'no-store' });
+    const res = await fetch(appReleaseFetchUrl(), {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    });
     if (!res.ok) return null;
-    return res.json();
+    try {
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
   }
 
   function parseIsoToMs(s) {
@@ -593,7 +605,18 @@
     } catch (e) {}
   }
 
-  async function maybeShowWhatsNewModal() {
+  /**
+   * @param {boolean} [forceImmediate] — true: ensimmäinen lataus tai bfcache-palautus (ohita throttling).
+   */
+  async function maybeShowWhatsNewModal(forceImmediate) {
+    const now = Date.now();
+    if (
+      !forceImmediate
+      && whatsNewLastAttemptAt > 0
+      && now - whatsNewLastAttemptAt < WHATS_NEW_RECHECK_MIN_MS
+    ) {
+      return;
+    }
     const lastVisitMs = readLastVisitMs();
     let manifest;
     try {
@@ -601,6 +624,14 @@
     } catch (e) {
       return;
     }
+    if (manifest == null) return;
+
+    /** Onnistunut verkko-JSON; throttling + käyntiaika vasta tässä (ei epäonnistuneessa / tyhjässä vastauksessa). */
+    whatsNewLastAttemptAt = Date.now();
+    try {
+      recordVisitNow();
+    } catch (e) {}
+
     const all = normalizeReleaseEntries(manifest);
     if (!all.length) return;
 
@@ -1376,8 +1407,18 @@
   loadLastDurationInputs();
   tryPersistStorageAndPeriodicSync();
 
-  maybeShowWhatsNewModal().finally(() => {
-    recordVisitNow();
+  maybeShowWhatsNewModal(true);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      maybeShowWhatsNewModal(false);
+    }
+  });
+
+  window.addEventListener('pageshow', (ev) => {
+    if (ev.persisted) {
+      maybeShowWhatsNewModal(true);
+    }
   });
 
   totalMs = parseInputs();
