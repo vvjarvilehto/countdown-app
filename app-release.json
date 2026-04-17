@@ -1,8 +1,8 @@
 {
-  "version": "1",
-  "title": "Countdown — päivitys",
-  "body": "Uusia ominaisuuksia ja parannuksia.",
+  "version": "2",
+  "title": "Countdown — pieni päivitys",
   "lines": [
-    "Ilmoitukset uusista versioista (kun sallit ilmoitukset)"
+    "Viimeisin kesto (tunnit / min / sek) muistetaan seuraavaa käynnistystä varten",
+    "Testaa: kun tämä versio on GitHub Pagesissa, salli ilmoitukset ja avaa äppi uudelleen — näet päivityksen ja mahdollisen ilmoituksen"
   ]
 }
