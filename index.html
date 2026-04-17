@@ -307,8 +307,23 @@
     </div>
 
     <p id="hint-notify" class="text-center text-xs text-gray-400 font-medium">
-      Ilmoitukset: salli ne. Taustalla muistutus tulee useimmiten; voit saada myös ilmoituksen uusista ominaisuuksista (kun ne julkaistaan). Jos suljet PWA:n kokonaan, puhelin voi keskeyttää taustatyön — Chrome Androidissa taustasynkronointi auttaa, iOS rajoittaa usein.
+      Ilmoitukset: salli ne, jotta saat muistutuksen kun ajastin päättyy taustalla. Jos suljet PWA:n kokonaan, puhelin voi keskeyttää taustatyön — Chrome Androidissa taustasynkronointi auttaa, iOS rajoittaa usein.
     </p>
+  </div>
+
+  <!-- Uudet ominaisuudet (edellisen käynnistyksen jälkeen) -->
+  <div id="whats-new-backdrop" class="fixed inset-0 z-[85] hidden bg-black/30 backdrop-blur-sm" aria-hidden="true"></div>
+  <div id="whats-new-panel" class="fixed left-1/2 top-1/2 z-[90] hidden w-[min(92vw,24rem)] max-h-[min(85vh,28rem)] -translate-x-1/2 -translate-y-1/2 flex flex-col rounded-3xl bg-white shadow-2xl border theme-detail-border" role="dialog" aria-modal="true" aria-labelledby="whats-new-title">
+    <div class="shrink-0 p-5 pb-3 border-b border-gray-100">
+      <h2 id="whats-new-title" class="text-center text-base font-black text-gray-900 leading-tight">Uutta edellisen käynnistyksen jälkeen</h2>
+      <p id="whats-new-sub" class="text-center text-xs font-semibold text-gray-400 mt-1.5"></p>
+    </div>
+    <div id="whats-new-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 text-sm text-gray-700"></div>
+    <div class="shrink-0 p-4 pt-2 border-t border-gray-100">
+      <button type="button" id="whats-new-dismiss" class="w-full py-3 rounded-2xl font-black text-white theme-btn-solid transition-colors">
+        Selvä
+      </button>
+    </div>
   </div>
 
   <!-- Loppujuhla-overlay -->
@@ -365,6 +380,14 @@
   const THEME_STORAGE_KEY = 'countdown-theme-v1';
   /** Viimeksi käynnistetty kesto (T/Min/Sek) — palautuu seuraavalla käynnistyksellä. */
   const LAST_DURATION_STORAGE_KEY = 'countdown-last-duration-v1';
+  /** Milloin käyttäjä viimeksi avasi äpin (ms) — uudet julkaisut tämän jälkeen näytetään modaalissa. */
+  const LAST_VISIT_AT_KEY = 'countdown-last-visit-at-ms-v1';
+
+  const whatsNewBackdrop = document.getElementById('whats-new-backdrop');
+  const whatsNewPanel = document.getElementById('whats-new-panel');
+  const whatsNewSub = document.getElementById('whats-new-sub');
+  const whatsNewBody = document.getElementById('whats-new-body');
+  const whatsNewDismiss = document.getElementById('whats-new-dismiss');
   /** @type {{ id: string, label: string, swatch: string }[]} */
   const THEME_CHOICES = [
     { id: 'sunset', label: 'Auringonlasku', swatch: 'linear-gradient(135deg,#ea580c,#f59e0b)' },
@@ -393,11 +416,211 @@
     }
   }
 
-  /** Pyydä taustatyötä tarkistamaan uusi sovellusversio (PWA-ilmoitus, jos käyttäjä on sallinut ilmoitukset). */
-  function requestAppReleaseNotificationCheck() {
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-    swPost({ type: 'APP_RELEASE_CHECK' });
+  const APP_RELEASE_PATH = 'app-release.json';
+
+  function appReleaseFetchUrl() {
+    const u = new URL(APP_RELEASE_PATH, window.location.href);
+    u.searchParams.set('_deploy', String(Date.now()));
+    return u;
   }
+
+  /**
+   * @returns {Promise<null|{
+   *   version?: string,
+   *   title?: string,
+   *   lines?: unknown,
+   *   body?: string,
+   *   releases?: unknown
+   * }>}
+   */
+  async function fetchAppReleaseManifest() {
+    const res = await fetch(appReleaseFetchUrl(), { cache: 'no-store' });
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  function parseIsoToMs(s) {
+    if (s == null || typeof s !== 'string') return NaN;
+    const t = Date.parse(s.trim());
+    return Number.isFinite(t) ? t : NaN;
+  }
+
+  /**
+   * @param {unknown} manifest
+   * @returns {{ version: string, title: string, lines: string[], publishedAtMs: number }[]}
+   */
+  function normalizeReleaseEntries(manifest) {
+    const out = [];
+    const m = manifest && typeof manifest === 'object' ? manifest : null;
+    if (!m) return out;
+
+    if (Array.isArray(m.releases)) {
+      m.releases.forEach((raw) => {
+        if (!raw || typeof raw !== 'object') return;
+        const r = /** @type {{ version?: unknown, title?: unknown, lines?: unknown, body?: unknown, publishedAt?: unknown }} */ (raw);
+        const version = r.version != null ? String(r.version).trim() : '';
+        const title = (r.title && String(r.title).trim()) || 'Päivitys';
+        const publishedAtMs = parseIsoToMs(
+          typeof r.publishedAt === 'string' ? r.publishedAt : ''
+        );
+        if (!version || !Number.isFinite(publishedAtMs)) return;
+        const lines = [];
+        if (Array.isArray(r.lines)) {
+          r.lines.forEach((x) => {
+            const line = String(x).trim();
+            if (line) lines.push(line);
+          });
+        }
+        if (!lines.length && r.body) {
+          String(r.body)
+            .split(/\r?\n/)
+            .map((x) => x.trim())
+            .filter(Boolean)
+            .forEach((x) => lines.push(x));
+        }
+        if (!lines.length) lines.push('Pieniä parannuksia ja korjauksia.');
+        out.push({ version, title, lines, publishedAtMs });
+      });
+    }
+
+    if (out.length === 0 && m.version != null) {
+      const version = String(m.version).trim();
+      const title = (m.title && String(m.title).trim()) || 'Päivitys';
+      const publishedAtMs = parseIsoToMs(
+        typeof m.publishedAt === 'string' ? m.publishedAt : ''
+      );
+      const lines = [];
+      if (Array.isArray(m.lines)) {
+        m.lines.forEach((x) => {
+          const line = String(x).trim();
+          if (line) lines.push(line);
+        });
+      }
+      if (!lines.length && m.body) {
+        String(m.body)
+          .split(/\r?\n/)
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .forEach((x) => lines.push(x));
+      }
+      if (version) {
+        if (!lines.length) lines.push('Sovellukseen on tullut päivitys.');
+        out.push({
+          version,
+          title,
+          lines,
+          publishedAtMs: Number.isFinite(publishedAtMs) ? publishedAtMs : 0,
+        });
+      }
+    }
+
+    out.sort((a, b) => a.publishedAtMs - b.publishedAtMs);
+    return out;
+  }
+
+  function readLastVisitMs() {
+    try {
+      const raw = localStorage.getItem(LAST_VISIT_AT_KEY);
+      if (raw == null || raw === '') return null;
+      const n = parseInt(raw, 10);
+      return Number.isFinite(n) ? n : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function recordVisitNow() {
+    try {
+      localStorage.setItem(LAST_VISIT_AT_KEY, String(Date.now()));
+    } catch (e) {}
+  }
+
+  function closeWhatsNewModal() {
+    if (!whatsNewPanel || !whatsNewBackdrop) return;
+    whatsNewPanel.classList.add('hidden');
+    whatsNewBackdrop.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  function openWhatsNewModal(entries, lastVisitMs) {
+    if (!whatsNewPanel || !whatsNewBackdrop || !whatsNewBody || !whatsNewSub) return;
+    const from = lastVisitMs != null
+      ? new Date(lastVisitMs).toLocaleString('fi-FI', {
+          day: 'numeric',
+          month: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : null;
+    whatsNewSub.textContent = from
+      ? `Julkaisut tämän jälkeen: ${from}`
+      : 'Ensimmäinen käynti — näytetään viimeisimmät julkaisut.';
+    whatsNewBody.replaceChildren();
+    const wrap = document.createDocumentFragment();
+    entries.forEach((rel, idx) => {
+      const sec = document.createElement('section');
+      sec.className = idx ? 'mt-5 pt-5 border-t border-gray-100' : '';
+      const h = document.createElement('h3');
+      h.className = 'text-sm font-black text-gray-900 mb-1';
+      h.textContent = rel.title;
+      sec.appendChild(h);
+      const meta = document.createElement('p');
+      meta.className = 'text-[11px] font-semibold text-gray-400 mb-2';
+      const when = new Date(rel.publishedAtMs).toLocaleString('fi-FI', {
+        day: 'numeric',
+        month: 'numeric',
+        year: 'numeric',
+      });
+      meta.textContent = `Versio ${rel.version} · ${when}`;
+      sec.appendChild(meta);
+      const ul = document.createElement('ul');
+      ul.className = 'list-disc pl-4 space-y-1.5 font-semibold text-gray-700';
+      rel.lines.forEach((line) => {
+        const li = document.createElement('li');
+        li.textContent = line;
+        ul.appendChild(li);
+      });
+      sec.appendChild(ul);
+      wrap.appendChild(sec);
+    });
+    whatsNewBody.appendChild(wrap);
+    whatsNewBackdrop.classList.remove('hidden');
+    whatsNewPanel.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    try {
+      whatsNewDismiss.focus();
+    } catch (e) {}
+  }
+
+  async function maybeShowWhatsNewModal() {
+    const lastVisitMs = readLastVisitMs();
+    let manifest;
+    try {
+      manifest = await fetchAppReleaseManifest();
+    } catch (e) {
+      return;
+    }
+    const all = normalizeReleaseEntries(manifest);
+    if (!all.length) return;
+
+    const threshold = lastVisitMs != null ? lastVisitMs : 0;
+    const fresh = all.filter((r) => r.publishedAtMs > threshold);
+    if (!fresh.length) return;
+
+    openWhatsNewModal(fresh, lastVisitMs);
+  }
+
+  if (whatsNewDismiss && whatsNewBackdrop) {
+    whatsNewDismiss.addEventListener('click', closeWhatsNewModal);
+    whatsNewBackdrop.addEventListener('click', closeWhatsNewModal);
+  }
+
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (!whatsNewPanel || whatsNewPanel.classList.contains('hidden')) return;
+    closeWhatsNewModal();
+  });
 
   function syncAllToServiceWorker() {
     swPost({ type: 'COUNTDOWN_SYNC_ALL', timers: timers.map((t) => ({ ...t })) });
@@ -1101,7 +1324,6 @@
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-      requestAppReleaseNotificationCheck();
       if (timers.length) {
         const now = Date.now();
         const done = timers.filter((t) => t.targetEndMs <= now);
@@ -1141,7 +1363,6 @@
       reg.update();
       const askRestore = () => {
         requestTimersFromServiceWorker();
-        requestAppReleaseNotificationCheck();
       };
       if (navigator.serviceWorker.controller) {
         askRestore();
@@ -1154,6 +1375,10 @@
   initThemePicker();
   loadLastDurationInputs();
   tryPersistStorageAndPeriodicSync();
+
+  maybeShowWhatsNewModal().finally(() => {
+    recordVisitNow();
+  });
 
   totalMs = parseInputs();
   remainingMs = totalMs;
