@@ -1033,21 +1033,22 @@
     sorted.forEach((t) => {
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = 'w-full min-w-0 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 text-left theme-row-press transition-colors';
+      row.className = 'w-full min-w-0 flex items-center justify-between gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 text-left theme-row-press transition-colors';
       row.setAttribute('data-timer-id', t.id);
       if (t.id === selectedId) row.classList.add('theme-row-active');
       const left = document.createElement('div');
-      left.className = 'min-w-0 flex-1';
+      left.className = 'min-w-0 flex-1 flex flex-col items-stretch gap-1';
       const nm = document.createElement('div');
-      nm.className = 'text-xs font-bold text-gray-600 truncate';
+      nm.className = 'text-base sm:text-lg font-black text-gray-900 leading-snug break-words hyphens-auto line-clamp-2';
       nm.textContent = t.name;
       const tm = document.createElement('div');
-      tm.className = 'timer-row-time shrink-0 text-sm sm:text-base font-black theme-accent-text leading-tight text-right break-words max-w-[55%]';
+      tm.className = 'timer-row-time text-lg sm:text-xl font-black theme-accent-text leading-none tabular-nums tracking-tight';
       tm.textContent = formatMs(remainingFor(t));
       left.appendChild(nm);
       left.appendChild(tm);
       const chev = document.createElement('span');
-      chev.className = 'text-xs font-bold theme-accent-muted shrink-0';
+      chev.className = 'text-lg font-bold theme-accent-muted shrink-0 self-center leading-none';
+      chev.setAttribute('aria-hidden', 'true');
       chev.textContent = '›';
       row.appendChild(left);
       row.appendChild(chev);
