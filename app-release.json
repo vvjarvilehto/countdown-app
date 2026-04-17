@@ -1,8 +1,21 @@
 {
-  "version": "2",
-  "title": "Countdown — pieni päivitys",
-  "lines": [
-    "Viimeisin kesto (tunnit / min / sek) muistetaan seuraavaa käynnistystä varten",
-    "Testaa: kun tämä versio on GitHub Pagesissa, salli ilmoitukset ja avaa äppi uudelleen — näet päivityksen ja mahdollisen ilmoituksen"
+  "releases": [
+    {
+      "version": "2",
+      "title": "Countdown — pieni päivitys",
+      "publishedAt": "2026-04-17T10:00:00.000Z",
+      "lines": [
+        "Viimeisin kesto (tunnit / min / sek) muistetaan seuraavaa käynnistystä varten"
+      ]
+    },
+    {
+      "version": "3",
+      "title": "Uudet ominaisuudet viime käynnistyksen jälkeen",
+      "publishedAt": "2026-04-17T16:00:00.000Z",
+      "lines": [
+        "Mitä uutta -ikkuna näyttää julkaisut, jotka ovat tulleet sen jälkeen kun avasit äpin viimeksi (aika tallennetaan vain tässä laitteessa)",
+        "Jokaisessa julkaisussa on päivämäärä ja lista muutoksista"
+      ]
+    }
   ]
 }
