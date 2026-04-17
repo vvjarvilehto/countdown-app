@@ -16,6 +16,14 @@
         "Mitä uutta -ikkuna näyttää julkaisut, jotka ovat tulleet sen jälkeen kun avasit äpin viimeksi (aika tallennetaan vain tässä laitteessa)",
         "Jokaisessa julkaisussa on päivämäärä ja lista muutoksista"
       ]
+    },
+    {
+      "version": "4",
+      "title": "Viimeisin ajastimen nimi muistissa",
+      "publishedAt": "2026-04-17T19:00:00.000Z",
+      "lines": [
+        "Viimeksi käyttämäsi ajastimen nimi täytetään automaattisesti seuraavalla käynnistyksellä (vain tässä laitteessa)"
+      ]
     }
   ]
 }

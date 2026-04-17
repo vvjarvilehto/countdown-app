@@ -380,6 +380,8 @@
   const THEME_STORAGE_KEY = 'countdown-theme-v1';
   /** Viimeksi käynnistetty kesto (T/Min/Sek) — palautuu seuraavalla käynnistyksellä. */
   const LAST_DURATION_STORAGE_KEY = 'countdown-last-duration-v1';
+  /** Viimeksi käytetty ajastimen nimi — ehdotetaan seuraavalla käynnistyksellä. */
+  const LAST_TIMER_NAME_STORAGE_KEY = 'countdown-last-timer-name-v1';
   /** Milloin käyttäjä viimeksi avasi äpin (ms) — uudet julkaisut tämän jälkeen näytetään modaalissa. */
   const LAST_VISIT_AT_KEY = 'countdown-last-visit-at-ms-v1';
 
@@ -711,6 +713,15 @@
       inH.value = h;
       inM.value = m;
       inS.value = s;
+    } catch (e) {}
+  }
+
+  function loadLastTimerName() {
+    try {
+      const raw = localStorage.getItem(LAST_TIMER_NAME_STORAGE_KEY);
+      if (raw == null || typeof raw !== 'string') return;
+      const trimmed = raw.trim().slice(0, 80);
+      if (trimmed) timerNameInput.value = trimmed;
     } catch (e) {}
   }
 
@@ -1264,6 +1275,9 @@
     applyFormPreviewFromMode();
     ensureTickLoop();
 
+    try {
+      localStorage.setItem(LAST_TIMER_NAME_STORAGE_KEY, name.slice(0, 80));
+    } catch (e) {}
     timerNameInput.value = '';
     setStatus('Lisätty', `${timers.length} ajastinta — voit käynnistää uuden`);
 
@@ -1405,6 +1419,7 @@
 
   initThemePicker();
   loadLastDurationInputs();
+  loadLastTimerName();
   tryPersistStorageAndPeriodicSync();
 
   maybeShowWhatsNewModal(true);
