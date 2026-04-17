@@ -363,6 +363,8 @@
   const metaTheme = document.getElementById('meta-theme');
 
   const THEME_STORAGE_KEY = 'countdown-theme-v1';
+  /** Viimeksi käynnistetty kesto (T/Min/Sek) — palautuu seuraavalla käynnistyksellä. */
+  const LAST_DURATION_STORAGE_KEY = 'countdown-last-duration-v1';
   /** @type {{ id: string, label: string, swatch: string }[]} */
   const THEME_CHOICES = [
     { id: 'sunset', label: 'Auringonlasku', swatch: 'linear-gradient(135deg,#ea580c,#f59e0b)' },
@@ -437,6 +439,25 @@
         btn.style.boxShadow = '';
       }
     });
+  }
+
+  function loadLastDurationInputs() {
+    try {
+      const raw = localStorage.getItem(LAST_DURATION_STORAGE_KEY);
+      if (!raw) return;
+      const o = JSON.parse(raw);
+      if (!o || typeof o !== 'object') return;
+      let h = parseInt(o.h, 10);
+      let m = parseInt(o.m, 10);
+      let s = parseInt(o.s, 10);
+      if (![h, m, s].every((n) => Number.isFinite(n))) return;
+      h = Math.min(99, Math.max(0, h));
+      m = Math.min(59, Math.max(0, m));
+      s = Math.min(59, Math.max(0, s));
+      inH.value = h;
+      inM.value = m;
+      inS.value = s;
+    } catch (e) {}
   }
 
   function initThemePicker() {
@@ -975,6 +996,14 @@
     };
     timers.push(rec);
     selectedId = rec.id;
+    if (tMode === 'duration') {
+      try {
+        const h = Math.min(99, Math.max(0, parseInt(inH.value, 10) || 0));
+        const m = Math.min(59, Math.max(0, parseInt(inM.value, 10) || 0));
+        const s = Math.min(59, Math.max(0, parseInt(inS.value, 10) || 0));
+        localStorage.setItem(LAST_DURATION_STORAGE_KEY, JSON.stringify({ h, m, s }));
+      } catch (e) {}
+    }
     ensureSelectedId();
     syncOneToServiceWorker(rec);
     renderTimerList();
@@ -1123,6 +1152,7 @@
   }
 
   initThemePicker();
+  loadLastDurationInputs();
   tryPersistStorageAndPeriodicSync();
 
   totalMs = parseInputs();
