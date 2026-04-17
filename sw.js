@@ -17,6 +17,13 @@ const APP_RELEASE_SEEN_KEY = 'app_release_seen_version';
 /** Vältä toistuvia tarkistuksia samassa SW-istunnossa (ms). */
 const APP_RELEASE_CHECK_INTERVAL_MS = 60 * 1000;
 
+/** GitHub Pages / CDN voivat välimuistittaa staattisia polkuja — haetaan aina tuore verkko-osoite. */
+function appReleaseFetchUrl() {
+  const u = new URL(APP_RELEASE_PATH, self.location.href);
+  u.searchParams.set('_deploy', String(Date.now()));
+  return u;
+}
+
 function countdownClearAlarmTimer() {
   if (countdownAlarmTimer) {
     clearTimeout(countdownAlarmTimer);
@@ -115,8 +122,8 @@ async function countdownIdbSetSeenReleaseVersion(v) {
 
 async function countdownMaybeNotifyAppRelease() {
   try {
-    const res = await fetch(new URL(APP_RELEASE_PATH, self.location.href), {
-      cache: 'no-cache',
+    const res = await fetch(appReleaseFetchUrl(), {
+      cache: 'no-store',
     });
     if (!res || !res.ok) return;
     const data = await res.json();
@@ -302,7 +309,6 @@ const PRECACHE = [
   './',
   'index.html',
   'manifest.json',
-  'app-release.json',
   'icon.svg',
   'sw.js',
 ];
@@ -332,7 +338,12 @@ self.addEventListener('activate', e => {
 // Chrome: herättää SW:n ajoittain (vaatii käyttöoikeuden; ei kaikilla alustoilla)
 self.addEventListener('periodicsync', (e) => {
   if (e.tag === 'countdown-check') {
-    e.waitUntil(countdownCheckExpiredFromIdb());
+    e.waitUntil(
+      Promise.all([
+        countdownCheckExpiredFromIdb(),
+        countdownMaybeNotifyAppRelease(),
+      ])
+    );
   }
 });
 
